@@ -1,0 +1,19 @@
+[project]
+name = "budget-tracker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "docker>=7.1.0",
+    "plotly>=6.3.0",
+    "psycopg>=3.2.9",
+    "pydbml>=1.2.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "pytest-mock-resources>=2.12.2",
+    "python-dotenv>=1.1.1",
+    "python-on-whales>=0.78.0",
+    "sqlalchemy>=2.0.42",
+    "streamlit>=1.48.1",
+]

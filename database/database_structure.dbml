@@ -1,0 +1,125 @@
+
+Table core.transactions {
+  id integer [increment, primary key]
+  user_id integer
+  account_id integer
+  category_id integer
+  target_account_id integer
+  transaction_type transaction_type
+  date timestamp [primary key]
+  amount numeric
+  currency varchar [default: 'HUF']
+  comment varchar
+
+  Note: "Partitioned by date and user_id"
+}
+
+Enum core.transaction_type {
+  credit
+  debit
+  transfer
+}
+
+Table core.transaction_categories {
+  id integer [increment, primary key]
+  user_id integer
+  category varchar [not null]
+  effective_from timestamp [not null]
+  effective_to timestamp
+}
+
+Table core.recurring_transactions {
+  id integer [increment, primary key]
+  user_id integer
+  category_id integer
+  recurrence recurrence
+  amount numeric
+  due_date_day integer
+}
+
+Enum core.recurrence {
+  daily
+  weekly
+  monthly
+  yearly
+}
+
+Table core.planned_transactions {
+  id integer [increment, primary key]
+  category_id integer
+  user_id integer
+  transaction_id integer
+  transaction_status transaction_status
+  amount numeric
+  currency varchar [default: 'HUF']
+  due_date date
+  realized_date timestamp
+}
+
+Enum  core.transaction_status {
+  planned
+  realized
+  overdue
+  cancelled
+}
+
+Table core.accounts {
+  id integer [increment, primary key]
+  user_id integer
+  account_name varchar
+  account_type varchar
+  currency varchar [default: 'HUF']
+  effective_from date [not null]
+  effective_to date
+}
+
+Table core.current_account_balance {
+  id integer [increment, primary key]
+  user_id integer
+  account_id integer
+  balance numeric
+  currency varchar [default: 'HUF']
+  last_modified_date date
+}
+
+Table core.balance_history {
+  id integer [increment, primary key]
+  user_id integer
+  account_id integer
+  balance numeric
+  currency varchar [default: 'HUF']
+  month date
+  created_at date
+}
+
+Table core.users {
+  id integer [increment, primary key]
+  first_name varchar
+  last_name varchar
+}
+
+Table core.exchange_rates {
+  id integer [increment, primary key]
+  from_currency varchar
+  to_currency varchar
+  rate numeric
+  date date
+}
+
+Table core.closed_months {
+  id integer [increment, primary key]
+  user_id integer
+  month integer
+  year integer
+}
+
+Table core.date_dim {
+  date_id integer [primary key]
+  date date
+  year integer
+  month integer
+  week integer
+  day integer
+  is_weekend bool
+  is_holiday bool
+}
