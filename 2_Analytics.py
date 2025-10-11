@@ -10,7 +10,6 @@ from datetime import timedelta
 import os
 
 from models import Transaction, PlannedTransaction, TransactionCategory, BalanceHistory, Account, TransactionStatusEnum, CurrentAccountBalance, ExchangeRate
-from src.database_selector import join_tables
 
 # --- Setup (reuse from 1_Data_Entry.py) ---
 load_dotenv()
@@ -35,7 +34,7 @@ def chunk_list(lst, n):
 
 with Session(engine) as session:
     with session.begin():
-        balances = join_tables(selected_user, CurrentAccountBalance, Account, "account_id", session)
+        balances = session.query(CurrentAccountBalance, Account).join(Account, CurrentAccountBalance.account_id == Account.id).filter(Account.user_id == selected_user).all()
         # Filter only bank accounts
         savings_accounts = [(t1, t2) for t1, t2 in balances if t2.account_type == "saving"]
         if not savings_accounts:
