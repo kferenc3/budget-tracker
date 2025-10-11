@@ -63,3 +63,25 @@ BEGIN
 	interval_text);
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION core.update_planned_transaction_status()
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  today_date DATE;
+  
+BEGIN
+	today_date := current_date::date;
+	-- Update any planned transactions that are past due to 'overdue'
+	EXECUTE format(
+	  'UPDATE planned_transactions
+	   set transaction_status = (%L)
+	   WHERE due_date < (%L) AND transaction_status = (%L);',
+	  'overdue',
+	  today_date,
+	  'planned'
+	);
+END;
+$function$
+;

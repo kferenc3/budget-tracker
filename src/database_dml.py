@@ -251,6 +251,28 @@ def add_transaction(user_id, category_id, transaction_type, date, amount, sessio
                                       session=session)
     return new_transaction.id
 
+def modify_transaction(transaction_id, user_id, session, **kwargs):
+    modifiable_fields = ['account_id', 'category_id', 'target_account_id', 'transaction_type', 'date', 'amount', 'currency', 'comment']
+
+    trx = session.query(Transaction).filter_by(id=transaction_id, user_id=user_id).first()
+    for key, value in kwargs.items():
+        if key in modifiable_fields:
+            if key == 'transaction_type' and value not in ('debit', 'credit', 'transfer'):
+                raise ValueError("Invalid transaction type. Use 'debit', 'credit', or 'transfer'.")
+            if (key == 'transaction_type' and value == 'transfer') and (not kwargs.get('target_account_id') or not trx.target_account_id):
+                raise ValueError("target_account_id must be provided for transfer transactions")
+            if key == 'date':
+                value = datetime.strptime(value, "%Y-%m-%d") if isinstance(value, str) else value
+                if session.query(ClosedMonth).filter_by(user_id=user_id, month=value.month, year=value.year).first():
+                    raise ValueError(f"Transaction date {value} is in a closed month.")
+            if key == 'category_id':
+                if not session.query(TransactionCategory).filter_by(id=value, user_id=user_id).first():
+                    raise ValueError(f"Category ID {value} does not exist for user ID {user_id}")
+            setattr(trx, key, value)
+    session.flush()  # Ensure changes are saved
+    return trx.id
+   
+
 def link_transaction_with_planned_transaction(transaction_id, planned_transaction_id, session):
     trx = session.query(Transaction).filter_by(id=transaction_id).first()
     if not trx:

@@ -4,8 +4,8 @@ import streamlit as st
 import pandas as pd
 import datetime
 
-from src.database_dml import add_new_user, add_transaction, mark_transaction_as_recurring, add_modify_planned_transaction, add_modify_account, add_modify_transaction_category, close_month, link_transaction_with_planned_transaction, load_exchange_rates
-from src.database_selector import get_table_data, join_tables
+from src.database_dml import add_new_user, add_transaction, mark_transaction_as_recurring, add_modify_planned_transaction, add_modify_account, add_modify_transaction_category, close_month, link_transaction_with_planned_transaction, load_exchange_rates, modify_transaction
+
 from models import User, TransactionCategory, TransactionTypeEnum, Account, CurrentAccountBalance, Transaction, RecurringTransaction, PlannedTransaction
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -23,7 +23,7 @@ def user_selector(session):
                     user_id, account_id = add_new_user(first_name, last_name, session, balance)
                     st.success(f"Account created successfully! User ID: {user_id}, Account ID: {account_id}")
 
-    users = get_table_data(User, session, columns=["id", "first_name", "last_name"])
+    users = session.query(User).all()
     if not users:
         st.write("No users found. Please create a new account first.")
         return
@@ -40,7 +40,7 @@ def account_balance_overview(session):
         st.stop()
 
     st.write("Account balances")
-    balances = join_tables(user_id, CurrentAccountBalance, Account, "account_id", session)
+    balances = session.query(CurrentAccountBalance, Account).join(Account, CurrentAccountBalance.account_id == Account.id).filter(Account.user_id == user_id).all()
     data = []
     for t1, t2 in balances:
         data.append({"Account ID": t2.id, 
@@ -120,10 +120,10 @@ def transaction_overview(session):
     if user_id == 0:
         st.warning("Please select a user from the sidebar.")
         st.stop()
-    
-    transactions = get_table_data(Transaction, session, user_id=user_id)
-    categories = dict(get_table_data(TransactionCategory, session, columns=["id", "category"], user_id=user_id))
-    account_dict = dict(get_table_data(Account, session, columns=["id", "account_name"], user_id=user_id))
+
+    transactions = session.query(Transaction).filter_by(user_id=user_id).all()
+    categories = dict(session.query(*[getattr(TransactionCategory, col) for col in ["id", "category"]]).filter_by(user_id=user_id, effective_to=None).all())
+    account_dict = dict(session.query(*[getattr(Account, col) for col in ["id", "account_name"]]).filter_by(user_id=user_id).all())
 
     period = period_selector(transactions)
     st.write("Transaction Overview")
@@ -184,19 +184,6 @@ def transaction_overview(session):
             trx_id = row.get("ID")
             if pd.isna(trx_id):
                 # New transaction, always add
-                changed = True
-            else:
-                orig_row = df[df["ID"] == trx_id]
-                if orig_row.empty:
-                    changed = False
-                else:
-                    orig_row = orig_row.iloc[0]
-                    changed = False
-                    # changed = any(
-                    #     row.get(col) != orig_row.get(col)
-                    #     for col in ["Amount", "Transaction Type", "Category", "Account", "Target Account", "Date", "Comment"]
-                    # )
-            if changed:
                 add_transaction(
                     user_id=user_id, 
                     category_id=next((k for k, v in categories.items() if v == row.get("Category")), None),
@@ -209,6 +196,35 @@ def transaction_overview(session):
                     trx_currency=row.get("Currency", "HUF"),
                     comment=row.get("Comment", None)
                 )
+            else:
+                orig_row = df[df["ID"] == trx_id]
+                if orig_row.empty:
+                    changed = False
+                else:
+                    orig_row = orig_row.iloc[0]
+                    changed = False
+                    changed = any(
+                        row.get(col) != orig_row.get(col)
+                        for col in ["Amount", "Transaction Type", "Category", "Account", "Target Account", "Date", "Comment", "Currency"]
+                    )
+            if changed:
+                modify_kwargs = {
+                    "category_id": next((k for k, v in categories.items() if v == row.get("Category")), None),
+                    "transaction_type": row.get("Transaction Type", None),
+                    "date": row.get("Date", None),
+                    "amount": row.get("Amount", None),
+                    "account_id": next((k for k, v in account_dict.items() if v == row.get("Account")), None),
+                    "target_account_id": next((k for k, v in account_dict.items() if v == row.get("Target Account")), None),
+                    "currency": row.get("Currency", "HUF"),
+                    "comment": row.get("Comment", None)
+                }
+                modify_transaction(
+                    transaction_id=trx_id,
+                    user_id=user_id,
+                    session=session,
+                    **{k: v for k, v in modify_kwargs.items() if v is not None}
+                )
+                
         session.commit()
         st.success("Transactions saved.")
         st.rerun()
@@ -219,8 +235,8 @@ def transaction_category_ui(session):
         st.warning("Please select a user from the sidebar.")
         st.stop()
         
-    categories = get_table_data(TransactionCategory, session, user_id=user_id)
-    recurring_trx = get_table_data(RecurringTransaction, session, user_id=user_id)
+    categories = session.query(TransactionCategory).filter_by(user_id=user_id, effective_to=None).all()
+    recurring_trx = session.query(RecurringTransaction).filter_by(user_id=user_id).all()
 
     with st.sidebar:
         st.write("Transaction Categories:")
@@ -255,8 +271,8 @@ def planned_transactions_ui(session):
     if user_id == 0:
         st.warning("Please select a user from the sidebar.")
         st.stop()
-    planned_trx = get_table_data(PlannedTransaction, session, user_id=user_id)
-    categories = dict(get_table_data(TransactionCategory, session, columns=["id", "category"], user_id=user_id))
+    planned_trx = session.query(PlannedTransaction).filter_by(user_id=user_id).all()
+    categories = dict(session.query(*[getattr(TransactionCategory, col) for col in ["id", "category"]]).filter_by(user_id=user_id, effective_to=None).all())
     data = []
     if 'period' not in st.session_state:
         period = datetime.datetime.now()
@@ -299,7 +315,7 @@ def planned_transactions_ui(session):
     }
 
     with st.expander("Link Transactions with Planned Transactions"):
-        transactions = get_table_data(Transaction, session, columns=["id", "category_id", "date"], user_id=user_id)
+        transactions = session.query(Transaction.id, Transaction.category_id, Transaction.date).filter_by(user_id=user_id).all()
         col1, col2 = st.columns(2)
         with col1:
             trx_to_link = st.selectbox(
@@ -391,7 +407,7 @@ def balance_checker_ui(session):
         st.warning("Please select a user from the sidebar.")
         st.stop()
     # Get all accounts and balances for the user
-    balances = join_tables(user_id, CurrentAccountBalance, Account, "account_id", session)
+    balances = session.query(CurrentAccountBalance, Account).join(Account, CurrentAccountBalance.account_id == Account.id).filter(Account.user_id == user_id).all()
     # Filter only bank accounts
     bank_accounts = [(t1, t2) for t1, t2 in balances if t2.account_type == "bank"]
     if not bank_accounts:
