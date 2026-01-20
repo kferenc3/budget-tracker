@@ -98,12 +98,8 @@ def account_balance_overview(session):
 def period_selector(transactions):
     with st.sidebar:
             with st.expander("Period selector"):
-                if not transactions:
-                    default_month = datetime.datetime.now().month
-                    default_year = datetime.datetime.now().year
-                else:
-                    default_month = max(t.date.month for t in transactions)
-                    default_year = max(t.date.year for t in transactions)
+                default_month = datetime.datetime.now().month
+                default_year = datetime.datetime.now().year
                 months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
                 years = [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034]  # Example years, adjust as needed
                 selected_year = st.selectbox("Select Year", options=years, index=years.index(default_year))
@@ -199,6 +195,7 @@ def transaction_overview(session):
             else:
                 orig_row = df[df["ID"] == trx_id]
                 if orig_row.empty:
+                    #TODO not a likely scenario but in this case a new trx is needed
                     changed = False
                 else:
                     orig_row = orig_row.iloc[0]
@@ -207,23 +204,23 @@ def transaction_overview(session):
                         row.get(col) != orig_row.get(col)
                         for col in ["Amount", "Transaction Type", "Category", "Account", "Target Account", "Date", "Comment", "Currency"]
                     )
-            if changed:
-                modify_kwargs = {
-                    "category_id": next((k for k, v in categories.items() if v == row.get("Category")), None),
-                    "transaction_type": row.get("Transaction Type", None),
-                    "date": row.get("Date", None),
-                    "amount": row.get("Amount", None),
-                    "account_id": next((k for k, v in account_dict.items() if v == row.get("Account")), None),
-                    "target_account_id": next((k for k, v in account_dict.items() if v == row.get("Target Account")), None),
-                    "currency": row.get("Currency", "HUF"),
-                    "comment": row.get("Comment", None)
-                }
-                modify_transaction(
-                    transaction_id=trx_id,
-                    user_id=user_id,
-                    session=session,
-                    **{k: v for k, v in modify_kwargs.items() if v is not None}
-                )
+                if changed:
+                    modify_kwargs = {
+                        "category_id": next((k for k, v in categories.items() if v == row.get("Category")), None),
+                        "transaction_type": row.get("Transaction Type", None),
+                        "date": row.get("Date", None),
+                        "amount": row.get("Amount", None),
+                        "account_id": next((k for k, v in account_dict.items() if v == row.get("Account")), None),
+                        "target_account_id": next((k for k, v in account_dict.items() if v == row.get("Target Account")), None),
+                        "currency": row.get("Currency", "HUF"),
+                        "comment": row.get("Comment", None)
+                    }
+                    modify_transaction(
+                        transaction_id=trx_id,
+                        user_id=user_id,
+                        session=session,
+                        **{k: v for k, v in modify_kwargs.items() if v is not None}
+                    )
                 
         session.commit()
         st.success("Transactions saved.")
@@ -237,7 +234,10 @@ def transaction_category_ui(session):
         
     categories = session.query(TransactionCategory).filter_by(user_id=user_id, effective_to=None).all()
     recurring_trx = session.query(RecurringTransaction).filter_by(user_id=user_id).all()
-
+    recurring_amount_by_category = {
+        rt.category_id: rt.amount
+        for rt in recurring_trx
+    }
     with st.sidebar:
         st.write("Transaction Categories:")
         category = st.selectbox("Select a category", options=["New category"] + [cat.category for cat in categories] ,key="mod_category")
@@ -261,10 +261,25 @@ def transaction_category_ui(session):
                 st.rerun()
             else:
                 st.warning("Please enter a category name.")
-        st.dataframe({
-            "Category": [cat.category for cat in categories if cat.effective_to is None or cat.effective_to > datetime.datetime.now()],
-            "Recurring": [cat.id in [rt.category_id for rt in recurring_trx] for cat in categories if cat.effective_to is None or cat.effective_to > datetime.datetime.now()]
-        }, use_container_width=True, height=1000)
+        for cat in categories:
+            recurring = cat.id in recurring_amount_by_category
+            amount = recurring_amount_by_category.get(cat.id)
+            icon = "✅" if recurring else "➖"
+            
+            with st.expander(cat.category):
+                st.markdown(
+                    f"""
+                    {icon} Recurring  
+                    {'Amount: ${:,.2f}'.format(amount) if amount else '—'}
+                    """,
+                )
+                st.divider()
+        
+        # st.dataframe({
+        #     "Category": [cat.category for cat in categories if cat.effective_to is None or cat.effective_to > datetime.datetime.now()],
+        #     "Recurring": [cat.id in [rt.category_id for rt in recurring_trx] for cat in categories if cat.effective_to is None or cat.effective_to > datetime.datetime.now()],
+        #     "Recurring Amount": [recurring_amount_by_category.get(cat.id, 0.0) for cat in categories if cat.effective_to is None or cat.effective_to > datetime.datetime.now()]
+        # }, use_container_width=True, height=1000)
 
 def planned_transactions_ui(session):
     user_id = int(st.session_state.get("selected_user","0:Unknown").split(":")[0])
@@ -279,7 +294,7 @@ def planned_transactions_ui(session):
     else:
         period = st.session_state.period
     for t1 in planned_trx:
-        if t1.due_date.year == period.year and t1.due_date.month == period.month and t1.transaction_status.value != 'realized':
+        if t1.due_date.year == period.year and t1.due_date.month == period.month and (t1.transaction_status.value not in ['realized', 'cancelled']):
             data.append({
                 "ID": t1.id,
                 #"Transaction ID": t1.transaction_id,
@@ -315,7 +330,7 @@ def planned_transactions_ui(session):
     }
 
     with st.expander("Link Transactions with Planned Transactions"):
-        transactions = session.query(Transaction.id, Transaction.category_id, Transaction.date).filter_by(user_id=user_id).all()
+        transactions = session.query(Transaction.id, Transaction.category_id, Transaction.date).filter_by(user_id=user_id).order_by(Transaction.date.desc()).all()
         col1, col2 = st.columns(2)
         with col1:
             trx_to_link = st.selectbox(

@@ -1,26 +1,26 @@
-CREATE SCHEMA "core";
+CREATE SCHEMA "app";
 
-CREATE TYPE "core"."transaction_type" AS ENUM (
+CREATE TYPE "app"."transaction_type" AS ENUM (
   'credit',
   'debit',
   'transfer'
 );
 
-CREATE TYPE "core"."recurrence" AS ENUM (
+CREATE TYPE "app"."recurrence" AS ENUM (
   'daily',
   'weekly',
   'monthly',
   'yearly'
 );
 
-CREATE TYPE "core"."transaction_status" AS ENUM (
+CREATE TYPE "app"."transaction_status" AS ENUM (
   'planned',
   'realized',
   'overdue',
   'cancelled'
 );
 
-CREATE TABLE "core"."transactions" (
+CREATE TABLE "app"."transactions" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY,
   "user_id" integer,
   "account_id" integer,
@@ -34,7 +34,7 @@ CREATE TABLE "core"."transactions" (
   PRIMARY KEY ("id", "date")
 ) PARTITION BY RANGE ("date");
 
-CREATE TABLE "core"."transaction_categories" (
+CREATE TABLE "app"."transaction_categories" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "user_id" integer,
   "category" varchar NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE "core"."transaction_categories" (
   "effective_to" timestamp
 );
 
-CREATE TABLE "core"."recurring_transactions" (
+CREATE TABLE "app"."recurring_transactions" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "user_id" integer,
   "category_id" integer,
@@ -51,7 +51,7 @@ CREATE TABLE "core"."recurring_transactions" (
   "due_date_day" integer
 );
 
-CREATE TABLE "core"."planned_transactions" (
+CREATE TABLE "app"."planned_transactions" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "category_id" integer,
   "user_id" integer,
@@ -63,7 +63,7 @@ CREATE TABLE "core"."planned_transactions" (
   "realized_date" timestamp
 );
 
-CREATE TABLE "core"."accounts" (
+CREATE TABLE "app"."accounts" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "user_id" integer,
   "account_name" varchar,
@@ -73,7 +73,7 @@ CREATE TABLE "core"."accounts" (
   "effective_to" date
 );
 
-CREATE TABLE "core"."current_account_balance" (
+CREATE TABLE "app"."current_account_balance" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "user_id" integer,
   "account_id" integer,
@@ -82,7 +82,7 @@ CREATE TABLE "core"."current_account_balance" (
   "last_modified_date" date
 );
 
-CREATE TABLE "core"."balance_history" (
+CREATE TABLE "app"."balance_history" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "user_id" integer,
   "account_id" integer,
@@ -92,13 +92,13 @@ CREATE TABLE "core"."balance_history" (
   "created_at" date
 );
 
-CREATE TABLE "core"."users" (
+CREATE TABLE "app"."users" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "first_name" varchar,
   "last_name" varchar
 );
 
-CREATE TABLE "core"."exchange_rates" (
+CREATE TABLE "app"."exchange_rates" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "from_currency" varchar,
   "to_currency" varchar,
@@ -106,14 +106,14 @@ CREATE TABLE "core"."exchange_rates" (
   "date" date
 );
 
-CREATE TABLE "core"."closed_months" (
+CREATE TABLE "app"."closed_months" (
   "id" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "user_id" integer,
   "month" integer,
   "year" integer
 );
 
-CREATE TABLE "core"."date_dim" (
+CREATE TABLE "app"."date_dim" (
   "date_id" integer PRIMARY KEY,
   "date" date,
   "year" integer,
@@ -124,4 +124,4 @@ CREATE TABLE "core"."date_dim" (
   "is_holiday" bool
 );
 
-COMMENT ON TABLE "core"."transactions" IS 'Partitioned by date and user_id';
+COMMENT ON TABLE "app"."transactions" IS 'Partitioned by date and user_id';

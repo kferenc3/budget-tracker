@@ -27,14 +27,14 @@ class TransactionStatusEnum(enum.Enum):
 # Tables
 class User(Base):
     __tablename__ = 'users'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     first_name = Column(String)
     last_name = Column(String)
 
 class Account(Base):
     __tablename__ = 'accounts'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer)
     account_name = Column(String)
@@ -45,7 +45,7 @@ class Account(Base):
 
 class TransactionCategory(Base):
     __tablename__ = 'transaction_categories'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer)
     category = Column(String, nullable=False)
@@ -54,7 +54,7 @@ class TransactionCategory(Base):
 
 class Transaction(Base):
     __tablename__ = 'transactions'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer)
     account_id = Column(Integer)
@@ -68,7 +68,7 @@ class Transaction(Base):
 
 class RecurringTransaction(Base):
     __tablename__ = 'recurring_transactions'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer)
     category_id = Column(Integer)
@@ -78,12 +78,12 @@ class RecurringTransaction(Base):
 
 class PlannedTransaction(Base):
     __tablename__ = 'planned_transactions'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     category_id = Column(Integer)
     user_id = Column(Integer)
     transaction_id = Column(Integer)
-    transaction_status = Column(Enum(TransactionStatusEnum, name="transaction_status", schema="core"))
+    transaction_status = Column(Enum(TransactionStatusEnum, name="transaction_status", schema="app"))
     amount = Column(Numeric)
     currency = Column(String, default='HUF')
     due_date = Column(Date)
@@ -91,7 +91,7 @@ class PlannedTransaction(Base):
 
 class CurrentAccountBalance(Base):
     __tablename__ = 'current_account_balance'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer)
     account_id = Column(Integer)
@@ -101,7 +101,7 @@ class CurrentAccountBalance(Base):
 
 class BalanceHistory(Base):
     __tablename__ = 'balance_history'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer)
     account_id = Column(Integer)
@@ -112,7 +112,7 @@ class BalanceHistory(Base):
 
 class ExchangeRate(Base):
     __tablename__ = 'exchange_rates'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     from_currency = Column(String)
     to_currency = Column(String)
@@ -121,7 +121,7 @@ class ExchangeRate(Base):
 
 class ClosedMonth(Base):
     __tablename__ = 'closed_months'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer)
     month = Column(Integer)
@@ -129,7 +129,7 @@ class ClosedMonth(Base):
 
 class DateDim(Base):
     __tablename__ = 'date_dim'
-    __table_args__ = {'schema': 'core'}
+    __table_args__ = {'schema': 'app'}
     date_id = Column(Integer, primary_key=True)
     date = Column(Date)
     year = Column(Integer)

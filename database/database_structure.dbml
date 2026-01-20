@@ -1,5 +1,5 @@
 
-Table core.transactions {
+Table app.transactions {
   id integer [increment, primary key]
   user_id integer
   account_id integer
@@ -14,13 +14,13 @@ Table core.transactions {
   Note: "Partitioned by date and user_id"
 }
 
-Enum core.transaction_type {
+Enum app.transaction_type {
   credit
   debit
   transfer
 }
 
-Table core.transaction_categories {
+Table app.transaction_categories {
   id integer [increment, primary key]
   user_id integer
   category varchar [not null]
@@ -28,7 +28,7 @@ Table core.transaction_categories {
   effective_to timestamp
 }
 
-Table core.recurring_transactions {
+Table app.recurring_transactions {
   id integer [increment, primary key]
   user_id integer
   category_id integer
@@ -37,14 +37,14 @@ Table core.recurring_transactions {
   due_date_day integer
 }
 
-Enum core.recurrence {
+Enum app.recurrence {
   daily
   weekly
   monthly
   yearly
 }
 
-Table core.planned_transactions {
+Table app.planned_transactions {
   id integer [increment, primary key]
   category_id integer
   user_id integer
@@ -56,14 +56,14 @@ Table core.planned_transactions {
   realized_date timestamp
 }
 
-Enum  core.transaction_status {
+Enum  app.transaction_status {
   planned
   realized
   overdue
   cancelled
 }
 
-Table core.accounts {
+Table app.accounts {
   id integer [increment, primary key]
   user_id integer
   account_name varchar
@@ -73,7 +73,7 @@ Table core.accounts {
   effective_to date
 }
 
-Table core.current_account_balance {
+Table app.current_account_balance {
   id integer [increment, primary key]
   user_id integer
   account_id integer
@@ -82,7 +82,7 @@ Table core.current_account_balance {
   last_modified_date date
 }
 
-Table core.balance_history {
+Table app.balance_history {
   id integer [increment, primary key]
   user_id integer
   account_id integer
@@ -92,13 +92,13 @@ Table core.balance_history {
   created_at date
 }
 
-Table core.users {
+Table app.users {
   id integer [increment, primary key]
   first_name varchar
   last_name varchar
 }
 
-Table core.exchange_rates {
+Table app.exchange_rates {
   id integer [increment, primary key]
   from_currency varchar
   to_currency varchar
@@ -106,14 +106,14 @@ Table core.exchange_rates {
   date date
 }
 
-Table core.closed_months {
+Table app.closed_months {
   id integer [increment, primary key]
   user_id integer
   month integer
   year integer
 }
 
-Table core.date_dim {
+Table app.date_dim {
   date_id integer [primary key]
   date date
   year integer

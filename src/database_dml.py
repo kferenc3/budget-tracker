@@ -85,6 +85,46 @@ def add_modify_account(user_id, account_name, account_type, session, currency='H
     return acct.id  # Return the new account ID
       # Ensure the account ID is available for further operations
 
+def balance_calculation(amount, trx_currency, account_currency, date, transaction_type, user_id, account_id, session, target_account_id=None, reverse=False):
+    source_amount = currency_conversion(amount, trx_currency, account_currency, date, session)
+    if not target_account_id:
+        target_account_currency = 'HUF'
+        target_account_type = 'bank'
+    else:
+        target_account_currency = session.query(Account).filter_by(id=target_account_id).first().currency
+        target_account_type = session.query(Account).filter_by(id=target_account_id).first().account_type
+
+    if transaction_type == 'transfer':
+        target_amount = currency_conversion(amount, trx_currency, target_account_currency, date, session)
+        
+        create_modify_account_balance(account_id=account_id,
+                                      user_id=user_id,
+                                      balance=source_amount,
+                                      transaction_type="debit" if not reverse else "credit",
+                                      session=session)
+        if target_account_type == 'loan':
+            create_modify_account_balance(account_id=target_account_id,
+                                          user_id=user_id,
+                                          balance=target_amount,
+                                          transaction_type="debit" if not reverse else "credit",
+                                          session=session)
+        else:
+            create_modify_account_balance(account_id=target_account_id,
+                                          user_id=user_id,
+                                          balance=target_amount,
+                                          transaction_type="credit" if not reverse else "debit",
+                                          session=session)
+    else:
+        if not reverse:
+            t_type = transaction_type
+        else:
+            t_type = "credit" if transaction_type == "debit" else "debit"
+        create_modify_account_balance(account_id=account_id,
+                                      user_id=user_id,
+                                      balance=source_amount,
+                                      transaction_type=t_type,
+                                      session=session)
+
 def create_modify_account_balance(account_id, user_id, balance, transaction_type, session, currency='HUF'):
     # First check if the account_id, user_id pair exists in the current_account_balance table
     balance = Decimal(balance)  # Ensure balance is a Decimal for accurate arithmetic operations
@@ -121,17 +161,22 @@ def add_modify_transaction_category(user_id, category_name, session, category_id
         session.flush()  # Ensure cat.id is available for further operations
         id = cat.id
     else:
-        if cat.effective_to is not None:
-            cat.effective_to = None  # Reactivate if it was previously deactivated
-        else:
-            cat.effective_to = datetime.now().date()  # Deactivate the category
-        new_cat = TransactionCategory(
-            category=category_name, user_id=user_id, effective_from=datetime.now().date()
-        )
-        session.add(new_cat)
-        session.flush()
-        id = new_cat.id
+        cat.category= category_name
+        user_id=user_id
+        
+        #TODO deactivation should be only done when a category is decomissioned not when modified.
 
+        # if cat.effective_to is not None:
+        #     cat.effective_to = None  # Reactivate if it was previously deactivated
+        # else:
+        #     cat.effective_to = datetime.now().date()  # Deactivate the category
+        # new_cat = TransactionCategory(
+        #     category=category_name, user_id=user_id, effective_from=datetime.now().date()
+        # )
+        # session.add(new_cat)
+        
+        session.flush()
+        id = cat.id
     return id
 
 def mark_transaction_as_recurring(user_id, category_id, session, recurrence: str = 'monthly', amount: float = 0.0, due_date_day: int = 10):
@@ -189,14 +234,7 @@ def add_transaction(user_id, category_id, transaction_type, date, amount, sessio
         account_currency = session.query(Account).filter_by(id=account_id).first().currency
     if transaction_type == 'transfer' and not target_account_id:
         raise ValueError("target_account_id must be provided for transfer transactions")
-    else:
-        if not target_account_id:
-            target_account_currency = 'HUF'
-            target_account_type = 'bank'
-        else:
-            target_account_currency = session.query(Account).filter_by(id=target_account_id).first().currency
-            target_account_type = session.query(Account).filter_by(id=target_account_id).first().account_type
-    # Ensure amount is a Decimal for accurate arithmetic operations
+    
     amount = Decimal(amount)
     #Validate category_id is a valid category in the transaction_categories table
     if not session.query(TransactionCategory).filter_by(id=category_id, user_id=user_id).first():
@@ -222,39 +260,15 @@ def add_transaction(user_id, category_id, transaction_type, date, amount, sessio
     )
     session.add(new_transaction)
     session.flush()  # Ensure new_transaction.id is available for further operations
-    source_amount = currency_conversion(amount, trx_currency, account_currency, date, session)
-
-    if transaction_type == 'transfer':
-        target_amount = currency_conversion(amount, trx_currency, target_account_currency, date, session)
-        create_modify_account_balance(account_id=account_id,
-                                      user_id=user_id,
-                                      balance=source_amount,
-                                      transaction_type="debit",
-                                      session=session)
-        if target_account_type == 'loan':
-            create_modify_account_balance(account_id=target_account_id,
-                                          user_id=user_id,
-                                          balance=target_amount,
-                                          transaction_type="debit",
-                                          session=session)
-        else:
-            create_modify_account_balance(account_id=target_account_id,
-                                          user_id=user_id,
-                                          balance=target_amount,
-                                          transaction_type="credit",
-                                          session=session)
-    else:
-        create_modify_account_balance(account_id=account_id,
-                                      user_id=user_id,
-                                      balance=source_amount,
-                                      transaction_type=transaction_type,
-                                      session=session)
+    balance_calculation(amount, trx_currency, account_currency, date, transaction_type, user_id, account_id, session, target_account_id)
+    
     return new_transaction.id
 
 def modify_transaction(transaction_id, user_id, session, **kwargs):
     modifiable_fields = ['account_id', 'category_id', 'target_account_id', 'transaction_type', 'date', 'amount', 'currency', 'comment']
 
     trx = session.query(Transaction).filter_by(id=transaction_id, user_id=user_id).first()
+    # Validate input fields
     for key, value in kwargs.items():
         if key in modifiable_fields:
             if key == 'transaction_type' and value not in ('debit', 'credit', 'transfer'):
@@ -268,10 +282,59 @@ def modify_transaction(transaction_id, user_id, session, **kwargs):
             if key == 'category_id':
                 if not session.query(TransactionCategory).filter_by(id=value, user_id=user_id).first():
                     raise ValueError(f"Category ID {value} does not exist for user ID {user_id}")
-            setattr(trx, key, value)
+        else:
+            raise ValueError(f"Field '{key}' cannot be modified.")
+
+    # Update transaction fields
+    if 'amount' in kwargs.keys():
+        recalculate_balances(trx, user_id, session, **kwargs)
+    for key, value in kwargs.items():
+        setattr(trx, key, value)
     session.flush()  # Ensure changes are saved
     return trx.id
-   
+
+def recalculate_balances(trx, user_id, session, **kwargs):  
+    # Recalculate account balances
+    # First, reverse the original transaction
+    original_amount = trx.amount
+    original_currency = trx.currency
+    original_date = trx.date
+    original_account_id = trx.account_id
+    original_target_account_id = trx.target_account_id
+    original_transaction_type = trx.transaction_type.value
+
+    balance_calculation(
+        original_amount, 
+        original_currency, 
+        session.query(Account).filter_by(id=original_account_id).first().currency, 
+        original_date, 
+        original_transaction_type, 
+        user_id, 
+        original_account_id, 
+        session, 
+        original_target_account_id, 
+        reverse=True)
+ 
+    # Now apply the modified transaction
+    new_amount = kwargs.get('amount', trx.amount)
+    new_currency = kwargs.get('currency', trx.currency)
+    new_date = kwargs.get('date', trx.date)
+    new_account_id = kwargs.get('account_id', trx.account_id)
+    new_target_account_id = kwargs.get('target_account_id', trx.target_account_id)
+    new_transaction_type = kwargs.get('transaction_type', trx.transaction_type)
+    balance_calculation(
+        new_amount, 
+        new_currency, 
+        session.query(Account).filter_by(id=new_account_id).first().currency, 
+        new_date, 
+        new_transaction_type, 
+        user_id, 
+        new_account_id, 
+        session, 
+        new_target_account_id)
+    
+    session.flush()  # Ensure changes are saved
+    return trx.id
 
 def link_transaction_with_planned_transaction(transaction_id, planned_transaction_id, session):
     trx = session.query(Transaction).filter_by(id=transaction_id).first()
@@ -362,6 +425,10 @@ def close_month(year, month, user_id, session):
     ).all()
 
     for rt in recurring_transactions:
+        active_category = session.query(TransactionCategory).filter(TransactionCategory.id == rt.category_id, TransactionCategory.effective_to == None).first()
+        if not active_category:
+            LOGGER.warning(f"Skipping recurring transaction {rt.id}: category {rt.category_id} is no longer active")
+            continue
         if rt.recurrence.value == 'monthly':
             # Create a planned transaction for the first day of the next month
             if rt.due_date_day > 0:

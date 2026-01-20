@@ -37,8 +37,11 @@ with Session(engine) as session:
         balances = session.query(CurrentAccountBalance, Account).join(Account, CurrentAccountBalance.account_id == Account.id).filter(Account.user_id == selected_user).all()
         # Filter only bank accounts
         savings_accounts = [(t1, t2) for t1, t2 in balances if t2.account_type == "saving"]
+        loans = [(t1, t2) for t1, t2 in balances if t2.account_type == "loan"]
         if not savings_accounts:
             st.info("No savings accounts found.")
+        if not loans:
+            st.info("No loan accounts found.")
 
         # Dynamically create columns for each savings account
         with st.expander("Savings", expanded=True):
@@ -62,6 +65,28 @@ with Session(engine) as session:
             with col_center:
                 st.metric(label="**Total Savings**", value=f"{total_savings:,.0f}", delta=f"{(total_savings - previous_total):,.0f}")
 
+        with st.expander("Loans", expanded=True):
+            total_debt = 0
+            previous_total = 0
+            acc_per_row = 3
+            for chunk in chunk_list(loans, acc_per_row):
+                cols = st.columns(acc_per_row)
+                for idx, (col, (bal, acc)) in enumerate(zip(cols, chunk)):
+                    with col:
+                        prev_bal = session.query(BalanceHistory).filter(BalanceHistory.account_id == acc.id).order_by(BalanceHistory.month.desc()).first()
+                        ex_rate_qry = session.query(ExchangeRate).filter(ExchangeRate.from_currency == acc.currency, ExchangeRate.to_currency == "HUF", ExchangeRate.date == pd.Timestamp.now().normalize()).first()
+                        ex_rate = float(getattr(ex_rate_qry, "rate", 1.0))
+                        huf_balance = float(bal.balance) if acc.currency == "HUF" else float(bal.balance) * ex_rate
+                        prev_huf_balance = float(getattr(prev_bal, "balance", 0)) if prev_bal and acc.currency == "HUF" else (float(getattr(prev_bal, "balance", 0)) * ex_rate if prev_bal else 0)
+                        delta = huf_balance - prev_huf_balance
+                        total_debt += huf_balance
+                        previous_total += prev_huf_balance
+                        st.metric(label=f"**{acc.account_name}**",value=f"{huf_balance:,.0f}", delta=f"{delta:,.0f}")
+            col_center = st.columns(2)[1]
+            with col_center:
+                st.metric(label="**Total Debt**", value=f"{total_debt:,.0f}", delta=f"{(total_debt - previous_total):,.0f}")
+
+        st.info(f"Debt/Saving ratio: {total_debt/total_savings:,.2f}")
         # --- Monthly Spending by Category ---
         transactions = session.query(Transaction).filter(Transaction.user_id == selected_user).all()
         categories = {c.id: c.category for c in session.query(TransactionCategory).filter(TransactionCategory.user_id == selected_user).all()}
@@ -85,7 +110,7 @@ with Session(engine) as session:
                 'Car loan': 'Loan',
                 'Babavaro': 'Loan'
             }
-            #month_df['category_group'] = month_df['category'].map(category_groups).fillna(month_df['category'])
+            
             month_df.loc[:, 'category_group'] = month_df['category'].map(category_groups).fillna(month_df['category'])
             spend_df = month_df[(month_df["type"] != "credit") & (month_df["category"] != "Revolut topup")].groupby("category_group")["amount"].sum().sort_values(ascending=False).reset_index()
             fig = px.bar(spend_df, x="category_group", y="amount", title="Spending by Category", color="category_group")
@@ -124,18 +149,17 @@ with Session(engine) as session:
                 planned_daily = planned_daily[["date", "cumulative_spend", "type"]]
                 if not actual_daily.empty:
                     last_actual_row = actual_daily.iloc[[-1]].copy()
+
                     last_actual_row["type"] = "Planned/Overdue"
                     planned_daily = pd.concat([last_actual_row, planned_daily], ignore_index=True)
             else:
                 planned_daily = pd.DataFrame(columns=["date", "cumulative_spend", "type"])
-
             # 3. Combine
             combined = pd.concat([
                 days_df[["date"]],
                 actual_daily[["date", "cumulative_spend", "type"]],
                 planned_daily
             ]).sort_values("date")
-
             combined = days_df.merge(combined, on="date", how="left")
 
             combined["cumulative_spend"] = combined["cumulative_spend"].ffill().fillna(0)
@@ -195,15 +219,27 @@ with Session(engine) as session:
         # --- Account Balances Over Time ---
         st.subheader("Account Balances Over Time")
         balances = session.query(BalanceHistory).filter(BalanceHistory.user_id == selected_user).all()
-        accounts = {a.id: a.account_name for a in session.query(Account).filter(Account.user_id == selected_user).all()}
+        accounts = {a.id: a.account_name for a in session.query(Account).filter(Account.user_id == selected_user).filter(Account.account_type != "bank").all()}
         bal_df = pd.DataFrame([{
             "account": accounts.get(b.account_id, "Unknown"),
-            "balance": float(getattr(b, "balance", 0)),
+            "balance": float(getattr(b, "balance", 0)) * (
+                1.0 if getattr(b, "currency", "HUF") == "HUF" else float(getattr(
+                    session.query(ExchangeRate)
+                    .filter(
+                        ExchangeRate.from_currency == getattr(b, "currency", "HUF"),
+                        ExchangeRate.to_currency == "HUF",
+                        ExchangeRate.date == pd.Timestamp.now().normalize()
+                    )
+                    .first(),
+                    "rate",
+                    1.0
+                ))
+            ),
             "month": b.month
-        } for b in balances])
+        } for b in balances if b.account_id in accounts.keys()])
         if not bal_df.empty:
             bal_df["month"] = pd.to_datetime(bal_df["month"])
-            fig4 = px.line(bal_df, x="month", y="balance", color="account", title="Account Balances Over Time")
+            fig4 = px.line(bal_df, x="month", y="balance", color="account", title="Account Balances Over Time", log_y=True)
             st.plotly_chart(fig4, use_container_width=True)
         else:
             st.info("No balance history data available.")

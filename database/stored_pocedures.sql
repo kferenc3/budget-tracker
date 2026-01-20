@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION core.create_monthly_transaction_partitions(start_month DATE, num_months INT)
+CREATE OR REPLACE FUNCTION app.create_monthly_transaction_partitions(start_month DATE, num_months INT)
 RETURNS void AS $$
 DECLARE
   i INT;
@@ -30,7 +30,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION core.date_dim_insert(start_month DATE, num_years INT)
+CREATE OR REPLACE FUNCTION app.date_dim_insert(start_month DATE, num_years INT)
 RETURNS void AS $$
 DECLARE
   i INT;
@@ -64,7 +64,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION core.update_planned_transaction_status()
+CREATE OR REPLACE FUNCTION app.update_planned_transaction_status()
  RETURNS void
  LANGUAGE plpgsql
 AS $function$
