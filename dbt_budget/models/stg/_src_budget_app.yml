@@ -1,0 +1,24 @@
+sources:
+  - name: budget_app
+    database: budget
+    description: Postgres application database
+    schema: app
+    tables:
+      - name: accounts
+        description: Collection of different account types (bank, loan, saving)
+        columns:
+          - name: id
+            description: Primary key for the accounts table
+            data_tests:
+              - not_null
+              - unique
+      - name: balance_history
+      - name: current_account_balance
+      - name: exchange_rates
+        description: Currency rates from openexchangerates api.
+        config:
+          freshness:
+            warn_after: {count: 2, period: day}
+          loaded_at_field: date
+      - name: transaction_categories
+      - name: transactions

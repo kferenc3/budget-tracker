@@ -1,0 +1,39 @@
+models:
+  - name: stg_budget_app__accounts
+    description: One account per row. Can be bank/saving/loan.
+    columns:
+      - name: account_id
+        description: Primary key for the accounts table.
+        data_tests:
+          - unique
+          - not_null
+      - name: user_id
+        description: App user id. Each user can have their own set of accounts
+      - name: account_name
+        description: Human readable name of the account as it appears in the app
+      - name: account_type
+        description: Type of the account
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [bank, saving, loan]
+      - name: account_currency
+        description: Main currency of the account
+      - name: effective_from
+        description: Created date of the account.
+      - name: effective_to
+        description: Accounts are not deleted but marked as inactive. Null is the account is active
+  - name: stg_budget_app__balance_history
+    description: tbd
+    columns:
+      - name: balance_history_id
+      - name: user_id
+      - name: account_id
+      - name: balance
+      - name: currency
+      - name: month
+      - name: created_at
+  - name: stg_budget_app__current_account_balance
+  - name: stg_budget_app__exchange_rates
+  - name: stg_budget_app__transaction_categories
+  - name: stg_budget_app__transactions
