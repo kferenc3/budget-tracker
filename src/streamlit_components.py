@@ -3,6 +3,8 @@ import os
 import streamlit as st
 import pandas as pd
 import datetime
+import subprocess
+import re
 
 from src.database_dml import add_new_user, add_transaction, mark_transaction_as_recurring, add_modify_planned_transaction, add_modify_account, add_modify_transaction_category, close_month, link_transaction_with_planned_transaction, load_exchange_rates, modify_transaction
 
@@ -415,6 +417,53 @@ def refresh_exchange_rates_ui(session):
         if st.button("Refresh exchange rates"):
             load_exchange_rates(session)
             st.success("Exchange rates refreshed successfully.")
+
+def should_keep_dbt_line(line):
+    """Check if a single line should be kept"""
+    return any(x in line for x in [
+        'Running with dbt',
+        'Found',
+        'PASS=',
+        'Completed',
+        'ERROR',
+        'FAIL',
+        'Finished running'
+    ])
+
+def clean_dbt_line(line):
+    """Remove ANSI color codes from a line"""
+    return re.sub(r'\[0m|\[32m|\[31m', '', line)
+
+def run_dbt_models():
+    with st.sidebar:
+        if st.button("Run dbt Transformations"):
+            cwd = os.getcwd()
+            with st.spinner("Running dbt models..."):
+                with st.expander("dbt Output"):
+                    output_placeholder = st.empty()
+                try:
+                    process = subprocess.Popen(
+                        ["uv", "run", "dbt", "build", "--target", "dev", "--profiles-dir", f"{cwd}/dbt_budget/.dbt", "--project-dir", f"{cwd}/dbt_budget"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True
+                    )
+                    
+                    filtered_lines = []
+                    for line in process.stdout:
+                        if should_keep_dbt_line(line):
+                            cleaned_line = clean_dbt_line(line).strip()
+                            if cleaned_line:
+                                filtered_lines.append(cleaned_line)
+                                output_placeholder.text_area("dbt Output", value="\n".join(filtered_lines), height=300)
+                    
+                    process.wait()
+                    if process.returncode == 0:
+                        st.success("dbt models executed successfully.")
+                    else:
+                        st.error(f"dbt execution failed with return code {process.returncode}")
+                except Exception as e:
+                    st.error(f"Exception occurred: {e}")
 
 def balance_checker_ui(session):
     user_id = int(st.session_state.get("selected_user","0:Unknown").split(":")[0])

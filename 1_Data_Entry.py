@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from urllib.parse import quote_plus
 
 from src.streamlit_components import user_selector, account_balance_overview, transaction_overview, transaction_category_ui, \
-    planned_transactions_ui, close_month_ui, refresh_exchange_rates_ui, balance_checker_ui
+    planned_transactions_ui, close_month_ui, refresh_exchange_rates_ui, balance_checker_ui, run_dbt_models
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 LOGGER = logging.getLogger("budget_main")
@@ -27,6 +27,7 @@ with Session(engine) as session:
     with session.begin():
         st.set_page_config(page_title="Data Entry", layout="wide", page_icon='🔢')
         st.title("Budget Tracker")
+        run_dbt_models()
         refresh_exchange_rates_ui(session)
         user_selector(session)
         balance_checker_ui(session)
